@@ -270,12 +270,25 @@ module TonosCli
     tonoscli("depool --addr #{depool_addr} ticktock -w #{main_wallet} -s #{sign}")
   end
 
-  def ordinary_stake(value, depool_addr, wallet, sign)
-    tonoscli("depool --addr #{depool_addr} stake ordinary --wallet #{wallet} --value #{value} --sign #{sign}")
+  def ordinary_stake(value, depool_addr, wallet_addr, sign)
+    reinvest(depool_addr, wallet_addr, sign, reinvest: true)
+    tonoscli("depool --addr #{depool_addr} stake ordinary --wallet #{wallet_addr} --value #{value} --sign #{sign}")
   end
 
   def terminate_depool(depool_addr, depool_abi, sign)
     tonoscli("call #{depool_addr} terminator {} --abi #{depool_abi} --sign #{sign}")
+  end
+
+  def reinvest(depool_addr, wallet_addr, sign, reinvest={reinvest: false})
+    tonoscli("depool --addr #{depool_addr} withdraw #{reinvest[:reinvest] ? 'off' : 'on'} --wallet #{wallet_addr} --sign #{sign}")
+  end
+
+  def withdraw_part_stake(depool_addr, main_wallet, value, sign)
+    tonoscli("depool --addr #{depool_addr} stake withdrawPart --wallet #{wallet_addr} --value #{value} --sign #{sign}")
+  end
+
+  def withdraw_all(depool_addr, wallet_addr, sign)
+    reinvest(depool_addr, wallet_addr, sign, reinvest: false)
   end
 end
 
