@@ -17,7 +17,7 @@ module TonosCli
     end
   end
 
-  class_attr_accessor :network_url, :ton_folder_dir, :hostname, :user, :ton_script_dir, :run_script_dir
+  class_attr_accessor :network_url, :ton_folder_dir, :hostname, :user, :ton_script_dir, :run_script_dir, :keys_folder_dir
 end
 
 TonosCli.network_url = 'https://main.ton.dev'
@@ -26,7 +26,7 @@ TonosCli.user = `whoami`&.chomp
 TonosCli.ton_folder_dir = `echo $TON_FOLDER_DIR`&.chomp
 TonosCli.ton_script_dir = "/home/#{TonosCli.user}/ton/main.ton.dev/scripts"
 TonosCli.run_script_dir = "/home/#{TonosCli.user}/source/tonos-run"
-
+TonosCli.keys_folder_dir = "/home/#{TonosCli.user}/source/tonos-run/keys"
 
 module TonosCli
   
@@ -119,29 +119,29 @@ module TonosCli
   end
 
   # submitTransaction
-  def submitTransaction(from, to, tokens, msig='msig.keys.json', bounce=false, all_balance=false, payload='')
+  def submitTransaction(from, to, tokens, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", bounce=false, all_balance=false, payload='')
     tokens = (tokens * 1000000000).to_i
     tonoscli("call #{from} submitTransaction '{\"dest\":\"#{to}\",\"value\":#{tokens},\"bounce\":#{bounce},\"allBalance\":#{all_balance},\"payload\":\"#{payload}\"}' --abi SafeMultisigWallet.abi.json --sign #{msig}")
   end
 
-  def submitJsonTransaction(from, json={}, msig='msig.keys.json')
+  def submitJsonTransaction(from, json={}, msig="#{TonosCli.keys_folder_dir}/msig.keys.json")
     json[:value] = (json[:value] * 1000000000).to_i
     tonoscli("call #{from} submitTransaction '#{json.to_json}' --abi SafeMultisigWallet.abi.json --sign #{msig}")
   end
 
   # sendTransaction -> ТОлько если один кастодиан 
   # "flags": 3 "платить комиссию с кошелька отправителя" + "игнорировать ошибки" они по дефолту ставятся в submitTransaction
-  def sendTransaction(from, json={}, msig='msig.keys.json')
+  def sendTransaction(from, json={}, msig="#{TonosCli.keys_folder_dir}/msig.keys.json")
     json[:value] = (json[:value] * 1000000000).to_i
     tonoscli("call #{from} sendTransaction '#{json.to_json}' --abi SafeMultisigWallet.abi.json --sign #{msig}")
   end
 
-  def confirmTransaction(wallet_addr, transaction_id, msig='msig.keys2.json')
+  def confirmTransaction(wallet_addr, transaction_id, msig="#{TonosCli.keys_folder_dir}/msig.keys2.json")
     tonoscli("call #{wallet_addr} confirmTransaction '{\"transactionId\":\"#{transaction_id}\"}' --abi SafeMultisigWallet.abi.json --sign #{msig}")
   end
 
   # confirmTransactions
-  def confirmTransactions(wallet_addr, msig='msig.keys2.json')
+  def confirmTransactions(wallet_addr, msig="#{TonosCli.keys_folder_dir}/msig.keys2.json")
     transactions_resp = getTransactions(wallet_addr)
     transactions_resp["transactions"].each { |transaction| p confirmTransaction(wallet_addr, transaction['id'], msig) }
   end
@@ -203,11 +203,11 @@ module TonosCli
     result
   end
 
-  def deploy_sc(tvc, abi, json, msig='msig.keys.json', wc=0)
+  def deploy_sc(tvc, abi, json, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", wc=0)
     tonoscli("deploy #{tvc} '#{json}' --abi #{abi} --sign #{msig} --wc #{wc}")
   end
 
-  def deploy_wallet(keys, confirmations, msig='msig.keys.json', wc=0)
+  def deploy_wallet(keys, confirmations, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", wc=0)
     raise 'NOT KEYS' if keys.empty?
     json = "{\"owners\": [\"#{keys.join('", "')}\"],\"reqConfirms\":#{confirmations}}"
     deploy_sc('SafeMultisigWallet.tvc', 'SafeMultisigWallet.abi.json', json, msig, wc)
