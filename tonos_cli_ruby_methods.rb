@@ -209,11 +209,11 @@ module TonosCli
     participants.each do |participant_addr|
       participant_info = get_depool_participant_info(depool_addr, abi, participant_addr)
       info = {
-        addr: participant_addr,
-        total: participant_info['total'].to_f / 1000000000,
-        reinvest: participant_info['reinvest'],
-        reward: participant_info['reward'].to_f / 1000000000, 
-        stakes: Hash[participant_info['stakes'].map{|k, val| [k, (val.to_f / 1000000000)] } ]
+        'addr' => participant_addr,
+        'total' => participant_info['total'].to_f / 1000000000,
+        'reinvest' => participant_info['reinvest'],
+        'reward' => participant_info['reward'].to_f / 1000000000, 
+        'stakes' => Hash[participant_info['stakes'].map{|k, val| [k, (val.to_f / 1000000000)] } ]
       }
       result << info
     end
