@@ -265,9 +265,10 @@ module TonosCli
     tonoscli("call #{depool_helper_addr} sendTicktock {} --abi #{abi} --sign #{sign}")
   end
 
-  def multisigTickTock(main_wallet, depool_addr, sign)
+  def multisigTickTock(main_wallet, depool_addr, sign, sign2=nil)
     # depool [--addr <depool_address>] ticktock [-w <msig_address>] [-s <path_to_keys_or_seed_phrase>]
     tonoscli("depool --addr #{depool_addr} ticktock -w #{main_wallet} -s #{sign}")
+    confirmTransactions(main_wallet, sign2) if sign2
   end
 
   def ordinary_stake(value, depool_addr, wallet_addr, sign)
