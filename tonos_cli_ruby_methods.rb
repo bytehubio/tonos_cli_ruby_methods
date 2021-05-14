@@ -221,7 +221,7 @@ module TonosCli
   end
 
   def print_depool_participants_stakes(depool_addr, abi)
-    get_depool_participants_stakes(depool_addr, abi).each { |pr| p "#{pr[:addr]} - t: #{pr[:total]} - rew: #{pr[:reward]}" }
+    get_depool_participants_stakes(depool_addr, abi).each { |pr| p "#{pr['addr']} - t: #{pr['total']} - rew: #{pr['reward']}" }
   end
 
   def deploy_sc(tvc, abi, json, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", wc=0)
