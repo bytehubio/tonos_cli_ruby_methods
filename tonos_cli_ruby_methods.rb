@@ -32,7 +32,7 @@ module TonosCli
   
   def tonoscli(network=nil, params)
     network = TonosCli.network_url unless network
-    `tonos-cli config --url #{network} && cd #{TonosCli.run_script_dir} && tonos-cli config --url #{network} && tonos-cli #{params}`
+    `tonos-cli config --url #{network} && cd #{TonosCli.run_script_dir} && tonos-cli config --url #{network} && tonos-cli --url #{network} #{params}`
   end
 
   def genphrase
@@ -119,25 +119,26 @@ module TonosCli
   end
 
   # submitTransaction
-  def submitTransaction(from, to, tokens, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", bounce=false, all_balance=false, payload='')
+  def submitTransaction(from, to, tokens, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", bounce=false, all_balance=false, payload='', abi='SafeMultisigWallet.abi.json')
     tokens = (tokens * 1000000000).to_i
-    tonoscli("call #{from} submitTransaction '{\"dest\":\"#{to}\",\"value\":#{tokens},\"bounce\":#{bounce},\"allBalance\":#{all_balance},\"payload\":\"#{payload}\"}' --abi SafeMultisigWallet.abi.json --sign #{msig}")
+    tonoscli("call #{from} submitTransaction '{\"dest\":\"#{to}\",\"value\":#{tokens},\"bounce\":#{bounce},\"allBalance\":#{all_balance},\"payload\":\"#{payload}\"}' --abi #{abi} --sign #{msig}")
   end
 
-  def submitJsonTransaction(from, json={}, msig="#{TonosCli.keys_folder_dir}/msig.keys.json")
+  def submitJsonTransaction(from, json={}, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", abi='SafeMultisigWallet.abi.json')
     json[:value] = (json[:value] * 1000000000).to_i
-    tonoscli("call #{from} submitTransaction '#{json.to_json}' --abi SafeMultisigWallet.abi.json --sign #{msig}")
+    tonoscli("call #{from} submitTransaction '#{json.to_json}' --abi #{abi} --sign #{msig}")
   end
 
   # sendTransaction -> ТОлько если один кастодиан 
   # "flags": 3 "платить комиссию с кошелька отправителя" + "игнорировать ошибки" они по дефолту ставятся в submitTransaction
-  def sendTransaction(from, json={}, msig="#{TonosCli.keys_folder_dir}/msig.keys.json")
+  # "flags": 160 - вывести весь баланс, кошелек становится неактивным, value должно быть 0
+  def sendJsonTransaction(from, json={}, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", abi='SafeMultisigWallet.abi.json')
     json[:value] = (json[:value] * 1000000000).to_i
-    tonoscli("call #{from} sendTransaction '#{json.to_json}' --abi SafeMultisigWallet.abi.json --sign #{msig}")
+    tonoscli("call #{from} sendTransaction '#{json.to_json}' --abi #{abi} --sign #{msig}")
   end
 
-  def confirmTransaction(wallet_addr, transaction_id, msig="#{TonosCli.keys_folder_dir}/msig.keys2.json")
-    tonoscli("call #{wallet_addr} confirmTransaction '{\"transactionId\":\"#{transaction_id}\"}' --abi SafeMultisigWallet.abi.json --sign #{msig}")
+  def confirmTransaction(wallet_addr, transaction_id, msig="#{TonosCli.keys_folder_dir}/msig.keys2.json", abi='SafeMultisigWallet.abi.json')
+    tonoscli("call #{wallet_addr} confirmTransaction '{\"transactionId\":\"#{transaction_id}\"}' --abi #{abi} --sign #{msig}")
   end
 
   # confirmTransactions
@@ -221,7 +222,7 @@ module TonosCli
   end
 
   def print_depool_participants_stakes(depool_addr, abi)
-    get_depool_participants_stakes(depool_addr, abi).each { |pr| p "#{pr[:addr]} - t: #{pr[:total]} - rew: #{pr[:reward]}" }
+    get_depool_participants_stakes(depool_addr, abi).each { |pr| p "#{pr['addr']} - t: #{pr['total']} - rew: #{pr['reward']}" }
   end
 
   def deploy_sc(tvc, abi, json, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", wc=0)
