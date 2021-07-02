@@ -236,7 +236,7 @@ module TonosCli
     tonoscli("deploy #{tvc} '#{json}' --abi #{abi} --sign #{msig} --wc #{wc}")
   end
 
-  def deploy_wallet(keys, confirmations, tvc_dir="#{TonosCli.run_script_dir}/SafeMultisigWallet.tvc", abi_dir="#{TonosCli.run_script_dir}/SafeMultisigWallet.abi.json", msig="#{TonosCli.keys_folder_dir}/msig.keys.json", wc=0)
+  def deploy_wallet(keys, confirmations, tvc_dir="#{TonosCli.run_script_dir}/SafeMultisigWallet.tvc", abi="#{TonosCli.run_script_dir}/SafeMultisigWallet.abi.json", msig="#{TonosCli.keys_folder_dir}/msig.keys.json", wc=0)
     raise 'NOT KEYS' if keys.empty?
     json = "{\"owners\": [\"#{keys.join('", "')}\"],\"reqConfirms\":#{confirmations}}"
     deploy_sc(tvc_dir, abi, json, msig, wc)
