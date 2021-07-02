@@ -139,12 +139,12 @@ module TonosCli
   # sendTransaction -> ТОлько если один кастодиан 
   # "flags": 3 "платить комиссию с кошелька отправителя" + "игнорировать ошибки" они по дефолту ставятся в submitTransaction
   # "flags": 160 - вывести весь баланс, кошелек становится неактивным, value должно быть 0
-  def sendJsonTransaction(from, json={}, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", abi='SafeMultisigWallet.abi.json')
+  def sendJsonTransaction(from, json={}, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", abi="#{TonosCli.run_script_dir}/SafeMultisigWallet.abi.json")
     json[:value] = (json[:value] * 1000000000).to_i
     tonoscli("call #{from} sendTransaction '#{json.to_json}' --abi #{abi} --sign #{msig}")
   end
 
-  def confirmTransaction(wallet_addr, transaction_id, msig="#{TonosCli.keys_folder_dir}/msig.keys2.json", abi='SafeMultisigWallet.abi.json')
+  def confirmTransaction(wallet_addr, transaction_id, msig="#{TonosCli.keys_folder_dir}/msig.keys2.json", abi="#{TonosCli.run_script_dir}/SafeMultisigWallet.abi.json")
     tonoscli("call #{wallet_addr} confirmTransaction '{\"transactionId\":\"#{transaction_id}\"}' --abi #{abi} --sign #{msig}")
   end
 
@@ -155,7 +155,7 @@ module TonosCli
   end
 
   # getTransactions
-  def getTransactionsRaw(wallet_addr, abi='SafeMultisigWallet.abi.json')
+  def getTransactionsRaw(wallet_addr, abi="#{TonosCli.run_script_dir}/SafeMultisigWallet.abi.json")
     tonoscli("run #{wallet_addr} getTransactions {} --abi #{abi}")
   end
 
@@ -165,6 +165,9 @@ module TonosCli
     if out[/Result:([\s\S]+)$/]
       json = $1
       return JSON.parse(json || '{}')
+    elsif out[/Error:([\s\S]+)$/]
+      error = $1
+      raise error
     end
 
     {"transactions" => []}
@@ -247,14 +250,14 @@ module TonosCli
     deploy_sc('DePool.tvc', 'DePool.abi.json', json, msig, wc)
   end
 
-  def deploy_helper(depool_addr, msig='helper.json', wc=0)
+  def deploy_helper(depool_addr, msig="#{TonosCli.run_script_dir}/helper.json", wc=0)
     json = %{{"pool":"#{depool_addr}"}}
     deploy_sc('DePoolHelper.tvc', 'DePoolHelper.abi.json', json, msig, wc)
   end
 
-  def configure_depool_helper(helper_addr, timer, period_sec, msig='helper.json')
+  def configure_depool_helper(helper_addr, timer, period_sec, abi="#{TonosCli.run_script_dir}/DePoolHelper.abi.json", msig="#{TonosCli.run_script_dir}/helper.json")
     json = %{{"timer":"#{timer}","period":#{period_sec}}}
-    tonoscli("call #{helper_addr} initTimer '#{json}' --abi DePoolHelper.abi.json --sign #{msig}")
+    tonoscli("call #{helper_addr} initTimer '#{json}' --abi #{abi} --sign #{msig}")
   end
 
   def decode_tvc(tvc_path)
