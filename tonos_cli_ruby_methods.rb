@@ -545,15 +545,15 @@ module TonMethods
   end
 
   # nanotokens - 10^9
-  def send_tokens_to_elector(wallet_addr, tokens)
+  def send_tokens_to_elector(wallet_addr, tokens, abi="#{TonosCli.ton_folder_dir}/configs/SafeMultisigWallet.abi.json", msig="/home/#{TonosCli.user}/ton-keys/msig.keys.json")
     tokens = (tokens.to_i * (10**9)).to_i
     boc = `cd ~/ton-keys/elections && echo $(base64 --wrap=0 "validator-query.boc")`&.chomp
-    `cd #{TonosCli.ton_script_dir} && #{TonosCli.ton_folder_dir}/tonos-cli/target/release/tonos-cli call #{wallet_addr} submitTransaction '{"dest":"-1:3333333333333333333333333333333333333333333333333333333333333333","value":"#{tokens}","bounce":true,"allBalance":false,"payload":"#{boc}"}' --abi #{TonosCli.ton_folder_dir}/configs/SafeMultisigWallet.abi.json --sign /home/#{TonosCli.user}/ton-keys/msig.keys.json`
+    tonoscli(%{call #{wallet_addr} submitTransaction '{"dest":"-1:3333333333333333333333333333333333333333333333333333333333333333","value":"#{tokens}","bounce":true,"allBalance":false,"payload":"#{boc}"}' --abi #{abi} --sign #{msig}})
   end
 
-  def send_nanotokens_to_elector(wallet_addr, nanotokens)
+  def send_nanotokens_to_elector(wallet_addr, nanotokens, abi="#{TonosCli.ton_folder_dir}/configs/SafeMultisigWallet.abi.json", msig="/home/#{TonosCli.user}/ton-keys/msig.keys.json")
     boc = `cd ~/ton-keys/elections && echo $(base64 --wrap=0 "validator-query.boc")`&.chomp
-    `cd #{TonosCli.ton_script_dir} && #{TonosCli.ton_folder_dir}/tonos-cli/target/release/tonos-cli call #{wallet_addr} submitTransaction '{"dest":"-1:3333333333333333333333333333333333333333333333333333333333333333","value":"#{nanotokens}","bounce":true,"allBalance":false,"payload":"#{boc}"}' --abi #{TonosCli.ton_folder_dir}/configs/SafeMultisigWallet.abi.json --sign /home/#{TonosCli.user}/ton-keys/msig.keys.json`
+    tonoscli(%{call #{wallet_addr} submitTransaction '{"dest":"-1:3333333333333333333333333333333333333333333333333333333333333333","value":"#{nanotokens}","bounce":true,"allBalance":false,"payload":"#{boc}"}' --abi #{abi} --sign #{msig}})
   end
 end
 
