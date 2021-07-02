@@ -20,13 +20,26 @@ module TonosCli
   class_attr_accessor :network_url, :ton_folder_dir, :hostname, :user, :ton_script_dir, :run_script_dir, :keys_folder_dir
 end
 
-TonosCli.network_url = 'https://main.ton.dev'
+
 TonosCli.hostname = `echo $(hostname -s)`&.chomp
 TonosCli.user = `whoami`&.chomp
-TonosCli.ton_folder_dir = `echo $TON_FOLDER_DIR`&.chomp
-TonosCli.ton_script_dir = "/home/#{TonosCli.user}/ton/main.ton.dev/scripts"
-TonosCli.run_script_dir = "/home/#{TonosCli.user}/source/tonos-run"
-TonosCli.keys_folder_dir = "/home/#{TonosCli.user}/source/tonos-run/keys"
+
+# TonosCli.network_url = 'https://main.ton.dev'
+# TonosCli.ton_folder_dir = `echo $TON_FOLDER_DIR`&.chomp
+# TonosCli.ton_script_dir = "/home/#{TonosCli.user}/ton/main.ton.dev/scripts"
+# TonosCli.run_script_dir = "/home/#{TonosCli.user}/source/tonos-run"
+# TonosCli.keys_folder_dir = "/home/#{TonosCli.user}/source/tonos-run/keys"
+
+if !(TonosCli.network_url && TonosCli.ton_folder_dir && TonosCli.ton_script_dir && TonosCli.run_script_dir && TonosCli.keys_folder_dir) {
+  raise 'DEFINE VARIABLES FOR RUBY TonosCli'
+}
+
+
+
+
+
+
+
 
 module TonosCli
   
