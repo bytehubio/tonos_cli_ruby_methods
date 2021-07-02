@@ -30,12 +30,6 @@ TonosCli.user = `whoami`&.chomp
 # TonosCli.run_script_dir = "/home/#{TonosCli.user}/source/tonos-run"
 # TonosCli.keys_folder_dir = "/home/#{TonosCli.user}/source/tonos-run/keys"
 
-if !(TonosCli.network_url && TonosCli.ton_folder_dir && TonosCli.ton_script_dir && TonosCli.run_script_dir && TonosCli.keys_folder_dir) 
-  raise 'DEFINE VARIABLES FOR RUBY TonosCli'
-end
-
-
-
 
 
 
