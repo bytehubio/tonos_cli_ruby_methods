@@ -32,7 +32,7 @@ module TonosCli
   
   def tonoscli(network=nil, params)
     network = TonosCli.network_url unless network
-    `tonos-cli config --url #{network} && cd #{TonosCli.run_script_dir} && tonos-cli config --url #{network} && tonos-cli --url #{network} #{params}`
+    `tonos-cli --url #{network} #{params}`
   end
 
   def genphrase
@@ -148,8 +148,8 @@ module TonosCli
   end
 
   # getTransactions
-  def getTransactionsRaw(wallet_addr)
-    tonoscli("run #{wallet_addr} getTransactions {} --abi SafeMultisigWallet.abi.json")
+  def getTransactionsRaw(wallet_addr, abi='SafeMultisigWallet.abi.json')
+    tonoscli("run #{wallet_addr} getTransactions {} --abi #{abi}")
   end
 
   # getTransactions json
@@ -174,7 +174,7 @@ module TonosCli
   end
 
   def get_depool_participant_info(depool_addr, abi, participant_addr)
-    info = tonoscli(%{run #{depool_addr} getParticipantInfo '{"addr":"#{participant_addr}"}' --abi #{TonosCli.run_script_dir}/DePool.abi.json})
+    info = tonoscli(%{run #{depool_addr} getParticipantInfo '{"addr":"#{participant_addr}"}' --abi #{abi}})
     raise $1 if info[/Error(.+)/]
     result = {}
     info.gsub!(/\n/, '')
@@ -184,7 +184,7 @@ module TonosCli
   end
 
   def get_depool_participants(depool_addr, abi)
-    info = tonoscli(%{run #{depool_addr} getParticipants {} --abi #{TonosCli.run_script_dir}/DePool.abi.json})
+    info = tonoscli(%{run #{depool_addr} getParticipants {} --abi #{abi}})
     raise $1 if info[/Error(.+)/]
     result = {}
     info.gsub!(/\n/, '')
@@ -251,7 +251,7 @@ module TonosCli
   end
 
   def decode_tvc(tvc_path)
-    tvm = `cd #{TonosCli.run_script_dir} && tvm_linker decode --tvc #{tvc_path}`
+    tvm = `tvm_linker decode --tvc #{tvc_path}`
     result = {}
     while tvm[/([^\n]+?):([\s\S]+?)$/]
       key = $1.strip
@@ -294,6 +294,33 @@ module TonosCli
   end
 end
 
+
+
+
+
+
+
+
+
+
+
+
+
+module TonosCli
+  module Rust
+
+    include TonosCli
+
+    def get_info_from_elector_rust(abi_dir)
+      out = run_method("-1:3333333333333333333333333333333333333333333333333333333333333333", 'get', abi_dir, {})
+      out[/Result:([\s\S]+)$/]
+      f = $1
+      raise 'active_election_id returned NIL' unless f
+      f.gsub!(/\n/, '').strip!
+      JSON.parse(f)
+    end
+  end
+end
 
 
 
