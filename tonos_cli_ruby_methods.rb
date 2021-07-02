@@ -126,12 +126,12 @@ module TonosCli
   end
 
   # submitTransaction
-  def submitTransaction(from, to, tokens, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", bounce=false, all_balance=false, payload='', abi='SafeMultisigWallet.abi.json')
+  def submitTransaction(from, to, tokens, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", bounce=false, all_balance=false, payload='', abi="#{TonosCli.run_script_dir}/SafeMultisigWallet.abi.json")
     tokens = (tokens * 1000000000).to_i
     tonoscli("call #{from} submitTransaction '{\"dest\":\"#{to}\",\"value\":#{tokens},\"bounce\":#{bounce},\"allBalance\":#{all_balance},\"payload\":\"#{payload}\"}' --abi #{abi} --sign #{msig}")
   end
 
-  def submitJsonTransaction(from, json={}, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", abi='SafeMultisigWallet.abi.json')
+  def submitJsonTransaction(from, json={}, msig="#{TonosCli.keys_folder_dir}/msig.keys.json", abi="#{TonosCli.run_script_dir}/SafeMultisigWallet.abi.json")
     json[:value] = (json[:value] * 1000000000).to_i
     tonoscli("call #{from} submitTransaction '#{json.to_json}' --abi #{abi} --sign #{msig}")
   end
