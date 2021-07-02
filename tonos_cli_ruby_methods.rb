@@ -245,14 +245,14 @@ module TonosCli
     deploy_sc(tvc_dir, abi, json, msig, wc)
   end
 
-  def deploy_de_pool(minStake: nil, validatorAssurance: nil, proxyCode: nil, validatorWallet: nil, participantRewardFraction: nil, msig: 'depool.json', wc: 0)
+  def deploy_de_pool(minStake: nil, validatorAssurance: nil, proxyCode: nil, validatorWallet: nil, participantRewardFraction: nil, tvc: "#{TonosCli.run_script_dir}/DePool.tvc", abi: "#{TonosCli.run_script_dir}/DePool.abi.json", msig: "#{TonosCli.keys_folder_dir}/depool.json", wc: 0)
     json = %{{"minStake":#{minStake}, "validatorAssurance":#{validatorAssurance}, "proxyCode":"#{proxyCode}", "validatorWallet":"#{validatorWallet}", "participantRewardFraction":#{participantRewardFraction}}}
-    deploy_sc('DePool.tvc', 'DePool.abi.json', json, msig, wc)
+    deploy_sc(tvc, abi, json, msig, wc)
   end
 
-  def deploy_helper(depool_addr, msig="#{TonosCli.run_script_dir}/helper.json", wc=0)
+  def deploy_helper(depool_addr, msig="#{TonosCli.run_script_dir}/helper.json", wc=0, tvc="#{TonosCli.run_script_dir}/DePoolHelper.tvc", abi="#{TonosCli.run_script_dir}/DePoolHelper.abi.json")
     json = %{{"pool":"#{depool_addr}"}}
-    deploy_sc('DePoolHelper.tvc', 'DePoolHelper.abi.json', json, msig, wc)
+    deploy_sc(tvc, abi, json, msig, wc)
   end
 
   def configure_depool_helper(helper_addr, timer, period_sec, abi="#{TonosCli.run_script_dir}/DePoolHelper.abi.json", msig="#{TonosCli.run_script_dir}/helper.json")
