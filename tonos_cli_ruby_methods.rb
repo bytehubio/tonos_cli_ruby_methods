@@ -1,6 +1,7 @@
 require "set"
 require "json"
 require "byebug"
+require "base64"
 
 module TonosCli
   def self.class_attr_accessor(*names)
@@ -328,6 +329,28 @@ module TonosCli
       raise 'active_election_id returned NIL' unless f
       f.gsub!(/\n/, '').strip!
       JSON.parse(f)
+    end
+
+    def get_election_id_with_elector_abi(elector_abi)
+      out = run_method("-1:3333333333333333333333333333333333333333333333333333333333333333", 'active_election_id', elector_abi, {})
+      if out[/Result:([\s\S]+)$/]
+        json = $1
+        return JSON.parse(json || '{}')['value0']
+      elsif out[/Error:([\s\S]+)$/]
+        error = $1
+        raise error
+      else
+        raise 'active_election_id returned NIL'
+      end
+    end
+
+    def get_validator_keys(path_to_config)
+      config = File.read(path_to_config)
+      JSON.parse(config)['validator_keys']
+    end
+
+    def adnl_key_id_to_addr(validator_adnl_key_id_base64)
+      "0x" + Base64.decode64(validator_adnl_key_id_base64).unpack("H*").first
     end
   end
 end
