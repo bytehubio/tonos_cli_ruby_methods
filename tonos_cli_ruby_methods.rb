@@ -346,7 +346,7 @@ module TonosCli
 
     def get_validator_keys(path_to_config)
       config = File.read(path_to_config)
-      JSON.parse(config)['validator_keys']
+      JSON.parse(config)['validator_keys'] || []
     end
 
     def adnl_key_id_to_addr(validator_adnl_key_id_base64)
