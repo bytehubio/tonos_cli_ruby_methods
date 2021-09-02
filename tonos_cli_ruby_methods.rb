@@ -18,7 +18,7 @@ module TonosCli
     end
   end
 
-  class_attr_accessor :network_url, :ton_folder_dir, :hostname, :user, :ton_script_dir, :run_script_dir, :keys_folder_dir
+  class_attr_accessor :network_url, :ton_folder_dir, :hostname, :user, :ton_script_dir, :run_script_dir, :keys_folder_dir, :dynami_lib, :endpoints
 end
 
 
@@ -303,6 +303,35 @@ module TonosCli
   def withdraw_all(depool_addr, wallet_addr, sign)
     reinvest(depool_addr, wallet_addr, sign, reinvest: false)
   end
+
+  def depool_events(addr: nil)
+      # event 924dd59eb77bc8ca8f1e05dada941fc6a204a69b6dc73dea0c0e10560cdf3260
+      # StakeSigningRequested 1630498544 (2021-09-01 12:15:44.000)
+      # {"electionId":"1630501750","proxy":"-1:5274ef4d52c7ee6e33248568fc9ce851a0f06a0ff93b5d7bf8d28e6bf16dce4b"}
+      event = {}
+      events = []
+      out = tonoscli("depool --addr #{addr} events")
+      while(out[/^(.+)$/])
+        line = $1
+        
+        if line[/event\s+(.+)\s*$/]
+          event[:id] = $1
+        end
+        if line[/(.+)\s+(\d+)\s+\((.+)\)\s*$/]
+          event[:name] = $1
+          event[:digit] = $2
+          event[:date] = $3
+        end
+        if line[/(\{.+\})\s*$/]
+          event[:json] = JSON.parse($1)
+          events << event
+          event = {}
+        end
+        out.sub!(/^(.+)$/, '')
+      end
+
+      events
+    end
 end
 
 
@@ -577,6 +606,213 @@ module TonMethods
   end
 end
 
+
+
+
+
+
+
+module TonosCli
+  module SDK
+    def self.client
+      TonClient.configure { |config| config.ffi_lib(TonosCli.dynami_lib) }
+      TonClient.create(config: {network: {endpoints: TonosCli.endpoints}})
+    end
+
+    def self.read_keys(keys_path)
+      file = File.read(keys_path)
+      JSON.parse(file)
+    end
+
+    def self.run_method(addr: nil, method_name: nil, params: nil, abi_path: nil)
+      paramsOfWaitForCollection = {
+        collection: "accounts",
+        filter: {
+          id: {
+            eq: addr
+          }
+        },
+        result: "boc",
+        timeout: nil
+      }
+      boc = nil
+      TonClient.callLibraryMethodSync(SDK.client.net.method(:wait_for_collection), paramsOfWaitForCollection) do |response|
+        if response.first.error
+          raise response.first.error['message']
+        else
+          boc = response.first.result['result']['boc']
+        end
+      end
+
+      abi = TonClient.read_abi(abi_path)
+      paramsOfEncodeMessage = {
+        abi: {type: 'Serialized', value: abi},
+        address: addr,
+        deploy_set: nil,
+        call_set: {
+          function_name: method_name,
+          header: nil,
+          input: params
+        },
+        signer: {type: 'None'},
+        processing_try_index: nil
+      }
+
+      message = nil
+      TonClient.callLibraryMethodSync(SDK.client.abi.method(:encode_message), paramsOfEncodeMessage) do |response|
+        if response.first.error
+          raise response.first.error['message']
+        else
+          message = response.first.result['message']
+        end
+      end
+
+      paramsOfRunTvm = {
+        message: message,
+        account: boc,
+        execution_options: nil,
+        abi: {type: 'Serialized', value: abi},
+        boc_cache: nil,
+        return_updated_account: nil
+      }
+
+      output = nil
+      TonClient.callLibraryMethodSync(SDK.client.tvm.method(:run_tvm), paramsOfRunTvm) do |response|
+        if response.first.error
+          raise response.first.error['message']
+        else
+          output = response.first.result['decoded']['output']
+        end
+      end
+      output
+    end
+
+
+
+    def self.get_message_body(method_name: nil, params: nil, abi_path: nil)
+      abi = TonClient.read_abi(abi_path)
+      paramsOfEncodeMessageBody = {
+        abi: {type: 'Serialized', value: abi},
+        call_set: {
+          function_name: method_name,
+          input: params
+        },
+        is_internal: true,
+        signer: {type: 'None'},
+        processing_try_index: nil
+      }
+      body = nil
+      TonClient.callLibraryMethodSync(SDK.client.abi.method(:encode_message_body), paramsOfEncodeMessageBody) do |response|
+        if response.first.error
+          raise response.first.error['message']
+        else
+          body = response.first.result['body']
+        end
+      end
+      body
+    end
+
+
+
+    def self.send_message(addr: nil, method_name: nil, params: {}, abi_path: nil, tvc_path: nil, keys_path: nil)
+      abi = TonClient.read_abi(abi_path)
+      tvc = tvc_path ? TonClient.read_tvc(tvc_path) : nil
+      keys = read_keys(keys_path)
+
+      paramsOfEncodeMessage = {
+        abi: {type: 'Serialized', value: abi},
+        address: addr,
+        deploy_set: tvc ? {tvc: tvc} : nil,
+        call_set: {
+          function_name: method_name,
+          header: nil,
+          input: params
+        },
+        signer: {type: 'Keys', keys: keys},
+        processing_try_index: 1
+      }
+
+      paramsOfProcessMessage = {message_encode_params: paramsOfEncodeMessage, send_events: false}
+      
+      message = nil
+      TonClient.callLibraryMethodSync(SDK.client.processing.method(:process_message), paramsOfProcessMessage) do |response|
+        if response.first.error
+          raise response.first.error['message']
+        else
+          message = response.first.result
+        end
+      end
+      message
+    end
+
+    def self.get_transactions(addr: nil, abi_path: nil)
+      run_method(addr: addr, method_name: "getTransactions", params: nil, abi_path: abi_path)["transactions"] || []
+    end
+
+    def self.confirm_transaction(addr: nil, transaction_id: nil, abi_path: nil, keys_path: nil)
+      send_message(addr: addr, method_name: "confirmTransaction", params: {transactionId: transaction_id}, abi_path: abi_path, tvc_path: nil, keys_path: keys_path)
+    end
+
+    def self.confirm_transactions(addr: nil, abi_path: nil, keys_path: nil)
+      blockchain_transactions = []
+      get_transactions(addr: addr, abi_path: abi_path).each do |transaction|
+        id = transaction["id"]
+        response = confirm_transaction(addr: addr, transaction_id: id, abi_path: abi_path, keys_path: keys_path)
+        blockchain_transactions << response['transaction']['id']
+      end
+
+      blockchain_transactions
+    end
+
+    def self.tick_tock(depool_addr: nil, msig_addr: nil, depool_abi_path: nil, msig_abi_path: nil, msig_keys_path: nil)
+      body = get_message_body(method_name: "ticktock", params: nil, abi_path: depool_abi_path)
+      params = {
+        dest: depool_addr,
+        value: 1_000_000_000,
+        bounce: true,
+        allBalance: false,
+        payload: body
+      }
+      response = send_message(
+        addr: msig_addr, 
+        method_name: "submitTransaction", 
+        params: params, 
+        abi_path: msig_abi_path, 
+        tvc_path: nil, 
+        keys_path: msig_keys_path
+      )
+
+      response['transaction']['id']
+    end
+
+    def self.active_election_id(addr: nil, abi_path: nil)
+      run_method(addr: addr, method_name: "active_election_id", params: nil, abi_path: abi_path)['value0']
+    end
+
+    def self.depool_events(addr: nil)
+      # event 924dd59eb77bc8ca8f1e05dada941fc6a204a69b6dc73dea0c0e10560cdf3260
+      # StakeSigningRequested 1630498544 (2021-09-01 12:15:44.000)
+      # {"electionId":"1630501750","proxy":"-1:5274ef4d52c7ee6e33248568fc9ce851a0f06a0ff93b5d7bf8d28e6bf16dce4b"}
+      TonosCli.instance_method(:depool_events).bind(Object).call(addr: addr)
+    end
+
+    def self.depool_events_print(events: [])
+      result = ""
+      events.each do |event|
+        result << "#{event[:id]}\n"
+        result << "#{event[:name]}  #{event[:digit]} #{event[:date]}\n"
+        result << "#{event[:json].to_s}\n"
+        result << "\n"
+      end
+
+      result
+    end
+
+    def self.get_participant_info(depool_addr: nil, participant_addr: nil, abi_path: nil)
+      run_method(addr: depool_addr, method_name: "getParticipantInfo", params: {addr: participant_addr}, abi_path: abi_path)
+    end
+  end
+end
 
 
 
