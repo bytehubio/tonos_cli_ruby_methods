@@ -18,7 +18,7 @@ module TonosCli
     end
   end
 
-  class_attr_accessor :network_url, :ton_folder_dir, :hostname, :user, :ton_script_dir, :run_script_dir, :keys_folder_dir, :dynami_lib, :endpoints
+  class_attr_accessor :network_url, :ton_folder_dir, :hostname, :user, :ton_script_dir, :run_script_dir, :keys_folder_dir, :ton_work_dir
 end
 
 
@@ -30,6 +30,7 @@ TonosCli.user = `whoami`&.chomp
 # TonosCli.ton_script_dir = "/home/#{TonosCli.user}/ton/main.ton.dev/scripts"
 # TonosCli.run_script_dir = "/home/#{TonosCli.user}/source/tonos-run"
 # TonosCli.keys_folder_dir = "/home/#{TonosCli.user}/source/tonos-run/keys"
+# TonosCli.ton_work_dir = "/var/ton-node"
 
 
 
@@ -41,6 +42,9 @@ module TonosCli
   def tonoscli(network=nil, params)
     network = TonosCli.network_url unless network
     `tonos-cli --url #{network} #{params}`
+  rescue => ex
+    p "tonos-cli --url #{network} #{params}"
+    p ex.message
   end
 
   def genphrase
@@ -81,12 +85,14 @@ module TonosCli
 
   # GEN WALLET ADDRESS
   def genaddr(tvc, abi, msig, wc=0)
-    out = tonoscli("genaddr #{tvc} #{abi} --setkey #{msig} --wc #{wc}")
+    out = tonoscli("genaddr #{tvc} --abi #{abi} --setkey #{msig} --wc #{wc}")
     if out[/Raw address:\s*(.+)\s*$/]
       address = $1
       return address
     end
-    ''
+    raise "address not found"
+  rescue => ex
+    raise "ERROR args: #{"genaddr #{tvc} --abi #{abi} --setkey #{msig} --wc #{wc}"} message: #{ex.message}"
   end
 
   def gen_full_addr(tvc, abi, wc=0)
@@ -124,6 +130,15 @@ module TonosCli
 
   def run_method(addr, method, abi, json='{}')
     tonoscli("run #{addr} #{method} '#{json}' --abi #{abi}")
+  end
+
+  def save_elector_state_to_file(addr)
+    `#{TonosCli.ton_folder_dir}/build/ton-labs-node-tools/target/release/console -C #{TonosCli.ton_work_dir}/configs/console.json --cmd 'getaccountstate #{addr} #{TonosCli.run_script_dir}/elector.boc'`
+  end
+
+  def runget_fift_method_from_boc(addr, method)
+    save_elector_state_to_file(addr)
+    tonoscli("runget --boc #{TonosCli.run_script_dir}/elector.boc #{method}")
   end
 
   # submitTransaction
@@ -303,35 +318,6 @@ module TonosCli
   def withdraw_all(depool_addr, wallet_addr, sign)
     reinvest(depool_addr, wallet_addr, sign, reinvest: false)
   end
-
-  def depool_events(addr: nil)
-      # event 924dd59eb77bc8ca8f1e05dada941fc6a204a69b6dc73dea0c0e10560cdf3260
-      # StakeSigningRequested 1630498544 (2021-09-01 12:15:44.000)
-      # {"electionId":"1630501750","proxy":"-1:5274ef4d52c7ee6e33248568fc9ce851a0f06a0ff93b5d7bf8d28e6bf16dce4b"}
-      event = {}
-      events = []
-      out = tonoscli("depool --addr #{addr} events")
-      while(out[/^(.+)$/])
-        line = $1
-        
-        if line[/event\s+(.+)\s*$/]
-          event[:id] = $1
-        end
-        if line[/(.+)\s+(\d+)\s+\((.+)\)\s*$/]
-          event[:name] = $1
-          event[:digit] = $2
-          event[:date] = $3
-        end
-        if line[/(\{.+\})\s*$/]
-          event[:json] = JSON.parse($1)
-          events << event
-          event = {}
-        end
-        out.sub!(/^(.+)$/, '')
-      end
-
-      events
-    end
 end
 
 
@@ -351,7 +337,7 @@ module TonosCli
 
     include TonosCli
 
-    def get_info_from_elector_rust(abi_dir)
+    def get_info_from_elector_rust_solidity(abi_dir)
       out = run_method("-1:3333333333333333333333333333333333333333333333333333333333333333", 'get', abi_dir, {})
       out[/Result:([\s\S]+)$/]
       f = $1
@@ -360,7 +346,7 @@ module TonosCli
       JSON.parse(f)
     end
 
-    def get_election_id_with_elector_abi(elector_abi)
+    def get_election_id_with_elector_abi_solidity(elector_abi)
       out = run_method("-1:3333333333333333333333333333333333333333333333333333333333333333", 'active_election_id', elector_abi, {})
       if out[/Result:([\s\S]+)$/]
         json = $1
@@ -371,6 +357,59 @@ module TonosCli
       else
         raise 'active_election_id returned NIL'
       end
+    end
+
+    def get_info_from_elector_rust_fift(abi_dir)
+      out = runget_fift_method_from_boc("-1:3333333333333333333333333333333333333333333333333333333333333333", 'get', abi_dir, '')
+      out[/Result:([\s\S]+)$/]
+      f = $1
+      raise 'active_election_id returned NIL' unless f
+      f.gsub!(/\n/, '').strip!
+      JSON.parse(f)
+    end
+
+    def get_election_id_fift
+      out = runget_fift_method_from_boc("-1:3333333333333333333333333333333333333333333333333333333333333333", 'active_election_id')
+      if out[/Result:([\s\S]+)$/]
+        json = $1
+        return JSON.parse(json || '["0"]').first
+      elsif out[/Error:([\s\S]+)$/]
+        error = $1
+        raise error
+      else
+        raise 'active_election_id returned NIL'
+      end
+    end
+
+    def get_participant_list_extended_fift
+      out = runget_fift_method_from_boc("-1:3333333333333333333333333333333333333333333333333333333333333333", 'participant_list_extended')
+      # p out
+      # out = `#{TonosCli.ton_folder_dir}/ton/build/lite-client/lite-client -p /home/#{TonosCli.user}/ton-keys/liteserver.pub -a 127.0.0.1:3031 -C /var/ton-work/etc/ton-global.config.json -v 0 -c 'runmethodfull -1:3333333333333333333333333333333333333333333333333333333333333333 participant_list_extended' -rc 'quit' 2>/dev/null`
+      # unless out[/\[\s*(\d+)\s+\[(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]\s*\]/]
+      #   raise 'participant_list_extended not works'
+      # end
+      # [115364769381711985676191404797531085158836848200337250445608490943598037098294 [10000000000000 196608 65285866190926269223588609262902744863930007113865173951504909034489155844542 9270661424391099987945973191613458068238496810249389371829447331302709193273]]
+      # [id, [stake, max_factor, addr, adnl_addr]]
+      result = []
+      loop do
+        # [\"1640650354\",\"1640642162\",\"10000000000000\",\"200670467189702032\",[[\"0x01630ad4809169b157cbc439dac0b3d3c220daa33163afbcd3f0b6d016865a43\",[\"363966370086331\",\"196608\",\"0x3d0f3aa0e94b407854e844c873214aec9d82726dc5459bff8db12444b09ab787\",\"0xae14e176cfb218c739f70be9a5f93e4ac96f35b84bbb5ab04acebbb5b05e70c5\"]],
+        out.sub!(/\[\"0x(\w+)?",\s*\[\s*"(\d+)?",\s*"(\w+)?",\s*"0x(\w+)?",\s*"(0x\w+)?"\s*\]\s*\]/, '')
+        id = $1
+        stake = $2
+        max_factor = $3
+        addr = $4
+        adnl_addr = $5
+        break if !id
+        result << {
+          id: id, 
+          stake: stake,
+          max_factor: max_factor.to_i,
+          addr: addr,
+          adnl_addr: adnl_addr
+        }
+      end
+
+      result
     end
 
     def get_validator_keys(path_to_config)
@@ -606,213 +645,6 @@ module TonMethods
   end
 end
 
-
-
-
-
-
-
-module TonosCli
-  module SDK
-    def self.client
-      TonClient.configure { |config| config.ffi_lib(TonosCli.dynami_lib) }
-      TonClient.create(config: {network: {endpoints: TonosCli.endpoints}})
-    end
-
-    def self.read_keys(keys_path)
-      file = File.read(keys_path)
-      JSON.parse(file)
-    end
-
-    def self.run_method(addr: nil, method_name: nil, params: nil, abi_path: nil)
-      paramsOfWaitForCollection = {
-        collection: "accounts",
-        filter: {
-          id: {
-            eq: addr
-          }
-        },
-        result: "boc",
-        timeout: nil
-      }
-      boc = nil
-      TonClient.callLibraryMethodSync(SDK.client.net.method(:wait_for_collection), paramsOfWaitForCollection) do |response|
-        if response.first.error
-          raise response.first.error['message']
-        else
-          boc = response.first.result['result']['boc']
-        end
-      end
-
-      abi = TonClient.read_abi(abi_path)
-      paramsOfEncodeMessage = {
-        abi: {type: 'Serialized', value: abi},
-        address: addr,
-        deploy_set: nil,
-        call_set: {
-          function_name: method_name,
-          header: nil,
-          input: params
-        },
-        signer: {type: 'None'},
-        processing_try_index: nil
-      }
-
-      message = nil
-      TonClient.callLibraryMethodSync(SDK.client.abi.method(:encode_message), paramsOfEncodeMessage) do |response|
-        if response.first.error
-          raise response.first.error['message']
-        else
-          message = response.first.result['message']
-        end
-      end
-
-      paramsOfRunTvm = {
-        message: message,
-        account: boc,
-        execution_options: nil,
-        abi: {type: 'Serialized', value: abi},
-        boc_cache: nil,
-        return_updated_account: nil
-      }
-
-      output = nil
-      TonClient.callLibraryMethodSync(SDK.client.tvm.method(:run_tvm), paramsOfRunTvm) do |response|
-        if response.first.error
-          raise response.first.error['message']
-        else
-          output = response.first.result['decoded']['output']
-        end
-      end
-      output
-    end
-
-
-
-    def self.get_message_body(method_name: nil, params: nil, abi_path: nil)
-      abi = TonClient.read_abi(abi_path)
-      paramsOfEncodeMessageBody = {
-        abi: {type: 'Serialized', value: abi},
-        call_set: {
-          function_name: method_name,
-          input: params
-        },
-        is_internal: true,
-        signer: {type: 'None'},
-        processing_try_index: nil
-      }
-      body = nil
-      TonClient.callLibraryMethodSync(SDK.client.abi.method(:encode_message_body), paramsOfEncodeMessageBody) do |response|
-        if response.first.error
-          raise response.first.error['message']
-        else
-          body = response.first.result['body']
-        end
-      end
-      body
-    end
-
-
-
-    def self.send_message(addr: nil, method_name: nil, params: {}, abi_path: nil, tvc_path: nil, keys_path: nil)
-      abi = TonClient.read_abi(abi_path)
-      tvc = tvc_path ? TonClient.read_tvc(tvc_path) : nil
-      keys = read_keys(keys_path)
-
-      paramsOfEncodeMessage = {
-        abi: {type: 'Serialized', value: abi},
-        address: addr,
-        deploy_set: tvc ? {tvc: tvc} : nil,
-        call_set: {
-          function_name: method_name,
-          header: nil,
-          input: params
-        },
-        signer: {type: 'Keys', keys: keys},
-        processing_try_index: 1
-      }
-
-      paramsOfProcessMessage = {message_encode_params: paramsOfEncodeMessage, send_events: false}
-      
-      message = nil
-      TonClient.callLibraryMethodSync(SDK.client.processing.method(:process_message), paramsOfProcessMessage) do |response|
-        if response.first.error
-          raise response.first.error['message']
-        else
-          message = response.first.result
-        end
-      end
-      message
-    end
-
-    def self.get_transactions(addr: nil, abi_path: nil)
-      run_method(addr: addr, method_name: "getTransactions", params: nil, abi_path: abi_path)["transactions"] || []
-    end
-
-    def self.confirm_transaction(addr: nil, transaction_id: nil, abi_path: nil, keys_path: nil)
-      send_message(addr: addr, method_name: "confirmTransaction", params: {transactionId: transaction_id}, abi_path: abi_path, tvc_path: nil, keys_path: keys_path)
-    end
-
-    def self.confirm_transactions(addr: nil, abi_path: nil, keys_path: nil)
-      blockchain_transactions = []
-      get_transactions(addr: addr, abi_path: abi_path).each do |transaction|
-        id = transaction["id"]
-        response = confirm_transaction(addr: addr, transaction_id: id, abi_path: abi_path, keys_path: keys_path)
-        blockchain_transactions << response['transaction']['id']
-      end
-
-      blockchain_transactions
-    end
-
-    def self.tick_tock(depool_addr: nil, msig_addr: nil, depool_abi_path: nil, msig_abi_path: nil, msig_keys_path: nil)
-      body = get_message_body(method_name: "ticktock", params: nil, abi_path: depool_abi_path)
-      params = {
-        dest: depool_addr,
-        value: 1_000_000_000,
-        bounce: true,
-        allBalance: false,
-        payload: body
-      }
-      response = send_message(
-        addr: msig_addr, 
-        method_name: "submitTransaction", 
-        params: params, 
-        abi_path: msig_abi_path, 
-        tvc_path: nil, 
-        keys_path: msig_keys_path
-      )
-
-      response['transaction']['id']
-    end
-
-    def self.active_election_id(addr: nil, abi_path: nil)
-      run_method(addr: addr, method_name: "active_election_id", params: nil, abi_path: abi_path)['value0']
-    end
-
-    def self.depool_events(addr: nil)
-      # event 924dd59eb77bc8ca8f1e05dada941fc6a204a69b6dc73dea0c0e10560cdf3260
-      # StakeSigningRequested 1630498544 (2021-09-01 12:15:44.000)
-      # {"electionId":"1630501750","proxy":"-1:5274ef4d52c7ee6e33248568fc9ce851a0f06a0ff93b5d7bf8d28e6bf16dce4b"}
-      TonosCli.instance_method(:depool_events).bind(Object).call(addr: addr)
-    end
-
-    def self.depool_events_print(events: [])
-      result = ""
-      events.each do |event|
-        result << "#{event[:id]}\n"
-        result << "#{event[:name]}  #{event[:digit]} #{event[:date]}\n"
-        result << "#{event[:json].to_s}\n"
-        result << "\n"
-      end
-
-      result
-    end
-
-    def self.get_participant_info(depool_addr: nil, participant_addr: nil, abi_path: nil)
-      run_method(addr: depool_addr, method_name: "getParticipantInfo", params: {addr: participant_addr}, abi_path: abi_path)
-    end
-  end
-end
 
 
 
